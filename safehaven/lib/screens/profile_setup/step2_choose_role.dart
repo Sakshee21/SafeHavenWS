@@ -1,0 +1,213 @@
+import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+class Step2ChooseRole extends StatefulWidget {
+  final String gender;
+  const Step2ChooseRole({super.key, required this.gender});
+
+  @override
+  State<Step2ChooseRole> createState() => _Step2ChooseRoleState();
+}
+
+class _Step2ChooseRoleState extends State<Step2ChooseRole> {
+  bool isUserSelected = false;
+  bool isVolunteerSelected = false;
+
+  void _toggleRole(String role) {
+    if (role == 'User / Victim' && widget.gender != 'Female') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Only female users can register as User / Victim.'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      if (role == 'User / Victim') {
+        isUserSelected = !isUserSelected;
+      } else if (role == 'Volunteer') {
+        isVolunteerSelected = !isVolunteerSelected;
+      }
+    });
+  }
+
+  Widget _buildCheckboxRoleCard({
+    required String role,
+    required String description,
+    required IconData icon,
+    required bool value,
+    required bool enabled,
+    required VoidCallback onChanged,
+  }) {
+    return Opacity(
+      opacity: enabled ? 1.0 : 0.5,
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 8),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          border: Border.all(
+            color: value ? Colors.blue : Colors.grey.shade300,
+            width: 2,
+          ),
+          borderRadius: BorderRadius.circular(12),
+          color: value ? Colors.blue.withOpacity(0.05) : Colors.white,
+        ),
+        child: Row(
+          children: [
+            Checkbox(
+              value: value,
+              onChanged: enabled ? (_) => onChanged() : null,
+              activeColor: Colors.blue,
+            ),
+            Icon(icon, color: Colors.blue, size: 28),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    role,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: value ? FontWeight.bold : FontWeight.w500,
+                      color: Colors.black,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(description, style: const TextStyle(color: Colors.grey)),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _completeSetup() async {
+    if (!isUserSelected && !isVolunteerSelected) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please select at least one role.'),
+          backgroundColor: Colors.orangeAccent,
+        ),
+      );
+      return;
+    }
+
+    final roles = [
+      if (isUserSelected) 'User / Victim',
+      if (isVolunteerSelected) 'Volunteer'
+    ].join(', ');
+
+    // ✅ Save role locally
+    final prefs = await SharedPreferences.getInstance();
+    if (isUserSelected && isVolunteerSelected) {
+      await prefs.setString('userRole', 'combined');
+    } else if (isUserSelected) {
+      await prefs.setString('userRole', 'user');
+    } else if (isVolunteerSelected) {
+      await prefs.setString('userRole', 'volunteer');
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Registered as $roles successfully!'),
+        backgroundColor: Colors.green,
+      ),
+    );
+
+    // ✅ Wait for snackbar to finish before navigating
+    await Future.delayed(const Duration(seconds: 1));
+
+    if (isUserSelected && isVolunteerSelected) {
+      Navigator.pushReplacementNamed(context, '/combined_home');
+    } else if (isUserSelected) {
+      Navigator.pushReplacementNamed(context, '/user_home');
+    } else if (isVolunteerSelected) {
+      Navigator.pushReplacementNamed(context, '/volunteer_home');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bool userRoleEnabled = widget.gender == 'Female';
+
+    return Scaffold(
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 20),
+              const Text(
+                'Profile Setup',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              ),
+              const Text('Step 2 of 2'),
+              const SizedBox(height: 40),
+              const CircleAvatar(
+                radius: 35,
+                backgroundColor: Color(0xFFE8EAF6),
+                child: Icon(Icons.shield, color: Colors.blue, size: 40),
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                'Choose your role',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Select how you want to use SafeHaven',
+                style: TextStyle(color: Colors.grey),
+              ),
+              const SizedBox(height: 24),
+
+              _buildCheckboxRoleCard(
+                role: 'User / Victim',
+                description:
+                    'Access SOS features, send alerts, and get help when needed',
+                icon: Icons.security,
+                value: isUserSelected,
+                enabled: userRoleEnabled,
+                onChanged: () => _toggleRole('User / Victim'),
+              ),
+
+              _buildCheckboxRoleCard(
+                role: 'Volunteer',
+                description:
+                    'Help others, respond to alerts, and provide assistance',
+                icon: Icons.volunteer_activism,
+                value: isVolunteerSelected,
+                enabled: true,
+                onChanged: () => _toggleRole('Volunteer'),
+              ),
+
+              const SizedBox(height: 30),
+              Center(
+                child: ElevatedButton(
+                  onPressed: _completeSetup,
+                  style: ElevatedButton.styleFrom(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 40, vertical: 14),
+                    backgroundColor: Colors.blue,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10)),
+                  ),
+                  child: const Text(
+                    'Complete Setup',
+                    style: TextStyle(fontSize: 16, color: Colors.white),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
