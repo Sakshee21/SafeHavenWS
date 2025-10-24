@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class Step2ChooseRole extends StatefulWidget {
   final String gender;
@@ -12,6 +13,7 @@ class Step2ChooseRole extends StatefulWidget {
 class _Step2ChooseRoleState extends State<Step2ChooseRole> {
   bool isUserSelected = false;
   bool isVolunteerSelected = false;
+  bool _isSaving = false;
 
   void _toggleRole(String role) {
     if (role == 'User / Victim' && widget.gender != 'Female') {
@@ -31,6 +33,84 @@ class _Step2ChooseRoleState extends State<Step2ChooseRole> {
         isVolunteerSelected = !isVolunteerSelected;
       }
     });
+  }
+
+  Future<void> _completeSetup() async {
+    if (!isUserSelected && !isVolunteerSelected) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please select at least one role.'),
+          backgroundColor: Colors.orangeAccent,
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isSaving = true);
+
+    final prefs = await SharedPreferences.getInstance();
+
+    final roles = <String>[];
+    if (isUserSelected) roles.add('user');
+    if (isVolunteerSelected) roles.add('volunteer');
+
+    // ✅ Store role locally
+    await prefs.setStringList('roles', roles);
+
+    // ✅ Prepare full user data
+    final userData = {
+      'uid': prefs.getString('uid') ?? '', // optional if not signed in yet
+      'email': prefs.getString('email') ?? '',
+      'phone': prefs.getString('phone') ?? '',
+      'name': prefs.getString('name'),
+      'gender': prefs.getString('gender'),
+      'city': prefs.getString('city'),
+      'age': prefs.getInt('age'),
+      'roles': roles,
+      'createdAt': FieldValue.serverTimestamp(),
+    };
+
+    // ✅ Upload to Firestore
+    try {
+       final userCollection = FirebaseFirestore.instance.collection('users');
+
+      if (userData['uid'] != null &&
+          userData['uid'].toString().isNotEmpty) {
+        // If UID is available, use it as the document ID
+        await userCollection
+            .doc(userData['uid'].toString())
+            .set(userData, SetOptions(merge: true));
+      } else {
+        // Otherwise, let Firestore generate an ID
+        await userCollection.add(userData);
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Profile setup complete as ${roles.join(', ')}'),
+          backgroundColor: Colors.green,
+        ),
+      );
+
+      await Future.delayed(const Duration(seconds: 1));
+
+      if (isUserSelected && isVolunteerSelected) {
+        Navigator.pushReplacementNamed(context, '/combined_home');
+      } else if (isUserSelected) {
+        Navigator.pushReplacementNamed(context, '/user_home');
+      } else if (isVolunteerSelected) {
+        Navigator.pushReplacementNamed(context, '/volunteer_home');
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to save: $e'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    } finally {
+      setState(() => _isSaving = false);
+    }
   }
 
   Widget _buildCheckboxRoleCard({
@@ -72,11 +152,11 @@ class _Step2ChooseRoleState extends State<Step2ChooseRole> {
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: value ? FontWeight.bold : FontWeight.w500,
-                      color: Colors.black,
                     ),
                   ),
                   const SizedBox(height: 4),
-                  Text(description, style: const TextStyle(color: Colors.grey)),
+                  Text(description,
+                      style: const TextStyle(color: Colors.grey)),
                 ],
               ),
             ),
@@ -84,51 +164,6 @@ class _Step2ChooseRoleState extends State<Step2ChooseRole> {
         ),
       ),
     );
-  }
-
-  Future<void> _completeSetup() async {
-    if (!isUserSelected && !isVolunteerSelected) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please select at least one role.'),
-          backgroundColor: Colors.orangeAccent,
-        ),
-      );
-      return;
-    }
-
-    final roles = [
-      if (isUserSelected) 'User / Victim',
-      if (isVolunteerSelected) 'Volunteer'
-    ].join(', ');
-
-    // ✅ Save role locally
-    final prefs = await SharedPreferences.getInstance();
-    if (isUserSelected && isVolunteerSelected) {
-      await prefs.setString('userRole', 'combined');
-    } else if (isUserSelected) {
-      await prefs.setString('userRole', 'user');
-    } else if (isVolunteerSelected) {
-      await prefs.setString('userRole', 'volunteer');
-    }
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Registered as $roles successfully!'),
-        backgroundColor: Colors.green,
-      ),
-    );
-
-    // ✅ Wait for snackbar to finish before navigating
-    await Future.delayed(const Duration(seconds: 1));
-
-    if (isUserSelected && isVolunteerSelected) {
-      Navigator.pushReplacementNamed(context, '/combined_home');
-    } else if (isUserSelected) {
-      Navigator.pushReplacementNamed(context, '/user_home');
-    } else if (isVolunteerSelected) {
-      Navigator.pushReplacementNamed(context, '/volunteer_home');
-    }
   }
 
   @override
@@ -189,18 +224,21 @@ class _Step2ChooseRoleState extends State<Step2ChooseRole> {
               const SizedBox(height: 30),
               Center(
                 child: ElevatedButton(
-                  onPressed: _completeSetup,
+                  onPressed: _isSaving ? null : _completeSetup,
                   style: ElevatedButton.styleFrom(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 40, vertical: 14),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 40, vertical: 14),
                     backgroundColor: Colors.blue,
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10)),
                   ),
-                  child: const Text(
-                    'Complete Setup',
-                    style: TextStyle(fontSize: 16, color: Colors.white),
-                  ),
+                  child: _isSaving
+                      ? const CircularProgressIndicator(color: Colors.white)
+                      : const Text(
+                          'Complete Setup',
+                          style:
+                              TextStyle(fontSize: 16, color: Colors.white),
+                        ),
                 ),
               ),
               const SizedBox(height: 20),

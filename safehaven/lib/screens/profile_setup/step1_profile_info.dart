@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'step2_choose_role.dart';
 
 class Step1ProfileInfo extends StatefulWidget {
@@ -15,6 +16,16 @@ class _Step1ProfileInfoState extends State<Step1ProfileInfo> {
   final TextEditingController cityController = TextEditingController();
 
   final _formKey = GlobalKey<FormState>();
+
+  /// ✅ Save user info locally before moving to Step 2
+  Future<void> _saveProfileInfo() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    await prefs.setString('name', nameController.text.trim());
+    await prefs.setString('city', cityController.text.trim());
+    await prefs.setString('gender', gender);
+    await prefs.setInt('age', int.tryParse(ageController.text.trim()) ?? 0);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -119,9 +130,15 @@ class _Step1ProfileInfoState extends State<Step1ProfileInfo> {
                 ),
                 const SizedBox(height: 16),
 
-              ElevatedButton(
-                  onPressed: () {
+                  ElevatedButton(
+                  onPressed: () async {
                     if (_formKey.currentState!.validate()) {
+                      final prefs = await SharedPreferences.getInstance();
+                      await prefs.setString('name', nameController.text.trim());
+                      await prefs.setString('city', cityController.text.trim());
+                      await prefs.setInt('age', int.tryParse(ageController.text.trim()) ?? 0);
+                      await prefs.setString('gender', gender);
+
                       Navigator.push(
                         context,
                         MaterialPageRoute(
@@ -132,6 +149,7 @@ class _Step1ProfileInfoState extends State<Step1ProfileInfo> {
                   },
                   child: const Text('Continue'),
                 ),
+
 
                 const SizedBox(height: 20),
               ],
