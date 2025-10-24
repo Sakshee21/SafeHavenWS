@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "181529049167",
+    "project_id": "safehavenw",
+    "storage_bucket": "safehavenw.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:181529049167:android:a740dfeaba0bb2f552923a",
+        "android_client_info": {
+          "package_name": "com.example.safehaven"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDS1nfsuZF5Ut54O-qT-ZGTZPNSrwBi_AU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

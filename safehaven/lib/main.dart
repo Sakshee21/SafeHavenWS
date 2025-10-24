@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart'; 
+
 import 'package:google_fonts/google_fonts.dart';
 import 'screens/login_screen.dart';
 import 'screens/signup_screen.dart';
@@ -10,7 +13,11 @@ import 'screens/home/combined_home.dart';
 import 'screens/cases/cases_screen.dart';
 import 'screens/profile/profile_screen.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform, // requires flutterfire configure
+  );
   runApp(const SafeHavenApp());
 }
 
