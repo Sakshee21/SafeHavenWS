@@ -10,8 +10,7 @@ import 'screens/profile_setup/step2_choose_role.dart';
 import 'screens/home/user_home.dart';
 import 'screens/home/volunteer_home.dart';
 import 'screens/home/combined_home.dart';
-import 'screens/cases/cases_screen.dart';
-import 'screens/profile/profile_screen.dart';
+
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -54,8 +53,6 @@ class SafeHavenApp extends StatelessWidget {
         '/volunteer_home': (_) => const VolunteerHome(),
         '/combined_home': (_) => const CombinedHome(),
 
-        '/cases': (_) => const CasesScreen(),
-        '/profile': (_) =>  ProfileScreen(),
       },
     );
   }
