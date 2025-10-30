@@ -51,8 +51,8 @@ class _Step2ChooseRoleState extends State<Step2ChooseRole> {
     final prefs = await SharedPreferences.getInstance();
 
     final roles = <String>[];
-    if (isUserSelected) roles.add('user');
-    if (isVolunteerSelected) roles.add('volunteer');
+    if (isUserSelected) roles.add('User');
+    if (isVolunteerSelected) roles.add('Volunteer');
 
     // ✅ Store role locally
     await prefs.setStringList('roles', roles);

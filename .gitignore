@@ -33,3 +33,5 @@ Thumbs.db
 .idea/
 *.swp
 *.swo
+
+backend/serviceAccountKey.json

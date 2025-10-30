@@ -16,19 +16,26 @@ const app = express();
 app.use(cors());
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
-app.use(morgan("dev")); // Logs all HTTP requests to console
+app.use(morgan("dev")); // Logs all HTTP requests
 
 // ---------------------------------------------
 //  Routes
 // ---------------------------------------------
+//const roleRoutes = require("./routes/roleRoutes");
+//const caseRoutes = require("./routes/caseRoutes");
 const contractRoutes = require("./routes/contracts");
+const firestoreRoleRoutes = require("./routes/firestoreRoleRoutes");
+
+app.use("/api/firestoreRoles", firestoreRoleRoutes);
+//app.use("/api/roles", roleRoutes);
+//app.use("/api/cases", caseRoutes);
 app.use("/api/contracts", contractRoutes);
 
 // ---------------------------------------------
 //  Root route
 // ---------------------------------------------
 app.get("/", (req, res) => {
-  res.send("SafeHaven Backend is running!");
+  res.send("✅ SafeHaven Backend is running!");
 });
 
 // ---------------------------------------------
@@ -48,5 +55,5 @@ app.use((err, req, res, next) => {
 // ---------------------------------------------
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
+  console.log(`🚀 Server running on http://localhost:${PORT}`);
 });
