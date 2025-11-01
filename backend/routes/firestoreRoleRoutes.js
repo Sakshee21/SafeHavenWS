@@ -140,19 +140,27 @@ router.get("/assignFromFirestore/:uid", async (req, res) => {
     targetAddress = ethers.getAddress(targetAddress); // checksum format
 
     // ✅ Assign each unique role on-chain
+    // ✅ Assign each unique role on-chain (nonce-safe version)
     const results = [];
-    for (const role of roles) {
-      console.log(`🔹 Assigning ${role} to ${targetAddress}...`);
-      const currentNonce = await signer.getNonce(); // ✅ always fetch latest
-      console.log(`Using fresh nonce: ${currentNonce}`);  
-      const tx = await roleManagerContract.assignRole(
+    let baseNonce = await signer.getNonce(); // start from current nonce
+
+    for (let i = 0; i < roles.length; i++) {
+    const role = roles[i];
+    const currentNonce = baseNonce + i; // increment manually
+    console.log(`🔹 Assigning ${role} to ${targetAddress}...`);
+    console.log(`Using nonce: ${currentNonce}`);
+
+    const tx = await roleManagerContract.assignRole(
         targetAddress,
-        ethers.encodeBytes32String(role)
-      );
-      await tx.wait();
-      results.push(role);
-      console.log(`✅ Successfully assigned ${role}`);
+        ethers.encodeBytes32String(role),
+        { nonce: currentNonce }  // ✅ explicitly set incremented nonce
+    );
+
+    await tx.wait();
+    results.push(role);
+    console.log(`✅ Successfully assigned ${role}`);
     }
+
 
     // ✅ Response
     res.json({
