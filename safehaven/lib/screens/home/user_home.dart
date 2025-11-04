@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:geolocator/geolocator.dart';
 import '../../widgets/bottom_nav.dart';
-import '../../services/cases_service.dart';
-import '../../models/case_model.dart';
+import '../../services/api_service.dart';
 
 class UserHome extends StatefulWidget {
   const UserHome({super.key});
@@ -12,13 +12,9 @@ class UserHome extends StatefulWidget {
 }
 
 class _UserHomeState extends State<UserHome> {
-  final CasesService _service = CasesService();
-
-  @override
-  void initState() {
-    super.initState();
-    _service.fetchFromServer();
-  }
+  bool _loading = false;
+  String? _error;
+  List<Map<String, dynamic>> _myCases = [];
 
   @override
   Widget build(BuildContext context) {
@@ -74,27 +70,9 @@ class _UserHomeState extends State<UserHome> {
                                   fontSize: 18, fontWeight: FontWeight.w600)),
                           const SizedBox(height: 12),
                           ElevatedButton.icon(
-                            onPressed: () {
-                              // Create a new help request
-                              final newCase = CaseModel(
-                                id: DateTime.now()
-                                    .millisecondsSinceEpoch
-                                    .toString(),
-                                title:
-                                    'Help Request #${DateTime.now().millisecondsSinceEpoch % 1000}',
-                                location: 'Your current location',
-                                status: 'active',
-                              );
-                              _service.addCase(newCase);
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                      '🚨 SOS sent! Authorities alerted.'),
-                                ),
-                              );
-                            },
+                            onPressed: _loading ? null : _sendSOS,
                             icon: const Icon(Icons.emergency, size: 24),
-                            label: const Text('Send SOS'),
+                            label: _loading ? const Text('Sending...') : const Text('Send SOS'),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.redAccent,
                               padding:
@@ -104,6 +82,11 @@ class _UserHomeState extends State<UserHome> {
                               ),
                             ),
                           ),
+                          if (_error != null)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 8.0),
+                              child: Text(_error!, style: const TextStyle(color: Colors.red)),
+                            ),
                         ],
                       ),
                     ),
@@ -117,5 +100,25 @@ class _UserHomeState extends State<UserHome> {
       bottomNavigationBar:
           const BottomNav(currentRoute: '/user_home', role: 'user'),
     );
+  }
+
+  Future<void> _sendSOS() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final pos = await Geolocator.getCurrentPosition();
+      final res = await ApiService.createCase(pos.latitude, pos.longitude);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('🚨 SOS sent! Case ID: ${res['caseId'] ?? 'N/A'}')),
+        );
+      }
+    } catch (e) {
+      setState(() => _error = e.toString());
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
   }
 }

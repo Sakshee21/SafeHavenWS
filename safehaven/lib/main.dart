@@ -10,6 +10,7 @@ import 'screens/profile_setup/step2_choose_role.dart';
 import 'screens/home/user_home.dart';
 import 'screens/home/volunteer_home.dart';
 import 'screens/home/combined_home.dart';
+import 'screens/cases/my_cases_screen.dart';
 
 
 void main() async {
@@ -52,6 +53,7 @@ class SafeHavenApp extends StatelessWidget {
         '/user_home': (_) => const UserHome(),
         '/volunteer_home': (_) => const VolunteerHome(),
         '/combined_home': (_) => const CombinedHome(),
+        '/my_cases': (_) => const MyCasesScreen(),
 
       },
     );

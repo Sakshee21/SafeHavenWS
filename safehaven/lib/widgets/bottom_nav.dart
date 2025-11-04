@@ -11,6 +11,7 @@ class BottomNav extends StatelessWidget {
     // Build the nav items based on role
     final items = <Map<String, dynamic>>[
       {'icon': Icons.home, 'label': 'Home', 'route': '/${role}_home'},
+      if (role == 'user') {'icon': Icons.folder, 'label': 'My Cases', 'route': '/my_cases'},
       if (role != 'user') {'icon': Icons.folder, 'label': 'Cases', 'route': '/cases'},
       {'icon': Icons.person, 'label': 'Profile', 'route': '/profile'},
     ];
