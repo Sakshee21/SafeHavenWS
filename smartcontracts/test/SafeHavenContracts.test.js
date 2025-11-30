@@ -80,14 +80,23 @@ describe("🚨 SafeHaven Blockchain Suite", function () {
     expect(cases[0]).to.equal(1n);
   });
 
-  it("only the victim can mark a case as false alarm", async function () {
-    await expect(caseContract.connect(user1).markAsFalse(1))
-      .to.emit(caseContract, "CaseMarkedFalse")
-      .withArgs(1, user1.address);
+  it("NGO lifecycle: acknowledge → assign volunteer → resolve", async function () {
+    // grant NGO role to owner
+    await roleManager.assignRole(owner.address, "NGO");
+    // acknowledge pending case #1
+    await expect(caseContract.connect(owner).acknowledgeCase(1))
+      .to.emit(caseContract, "CaseAcknowledged")
+      .withArgs(1, owner.address);
 
-    // outsider cannot mark someone else's case false
-    await expect(caseContract.connect(outsider).markAsFalse(1))
-      .to.be.revertedWith("Only victim can mark false");
+    // assign a volunteer (volunteer1 already has role 'Volunteer')
+    await expect(caseContract.connect(owner).assignVolunteer(1, volunteer1.address))
+      .to.emit(caseContract, "VolunteerAssigned")
+      .withArgs(1, volunteer1.address);
+
+    // resolve
+    await expect(caseContract.connect(owner).markResolved(1))
+      .to.emit(caseContract, "CaseResolved")
+      .withArgs(1, owner.address);
   });
 
   // --------------------------------------------------

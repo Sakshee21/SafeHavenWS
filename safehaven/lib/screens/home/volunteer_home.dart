@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:geolocator/geolocator.dart';
+import '../../services/api_service.dart';
+import '../../widgets/bottom_nav.dart';
 
 class CaseModel {
   final String id;
@@ -23,29 +26,38 @@ class VolunteerHome extends StatefulWidget {
 }
 
 class _VolunteerHomeState extends State<VolunteerHome> {
-  late List<CaseModel> allCases;
+  List<Map<String, dynamic>> _nearbyCases = [];
+  bool _loading = false;
+  String? _error;
 
   @override
   void initState() {
     super.initState();
-    // Hardcoded dummy cases for visualization
-    allCases = [
-      CaseModel(
-          id: '1',
-          title: 'Emergency near Park Street',
-          location: 'Downtown, City A',
-          status: 'active'),
-      CaseModel(
-          id: '2',
-          title: 'Domestic Disturbance',
-          location: 'Sector 8, City B',
-          status: 'in-progress'),
-      CaseModel(
-          id: '3',
-          title: 'Resolved Case #301',
-          location: 'Block D, City C',
-          status: 'resolved'),
-    ];
+    _loadNearbyCases();
+  }
+
+  Future<void> _loadNearbyCases() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final pos = await Geolocator.getCurrentPosition();
+      final res = await ApiService.getNearbyCases(pos.latitude, pos.longitude, radiusKm: 10);
+      if (mounted) {
+        setState(() {
+          _nearbyCases = List<Map<String, dynamic>>.from(res['cases'] ?? []);
+          _loading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = e.toString();
+          _loading = false;
+        });
+      }
+    }
   }
 
   Color _statusColor(String status) {
@@ -61,7 +73,9 @@ class _VolunteerHomeState extends State<VolunteerHome> {
     }
   }
 
-  Widget _buildActiveCaseCard(CaseModel c) {
+  Widget _buildActiveCaseCard(Map<String, dynamic> c) {
+    final status = ['Pending', 'Acknowledged', 'Escalated', 'Resolved'][c['status'] ?? 0];
+    final statusStr = status.toLowerCase();
     return Card(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       elevation: 2,
@@ -73,12 +87,15 @@ class _VolunteerHomeState extends State<VolunteerHome> {
               child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(c.title,
+                    Text('Case #${c['id']}',
                         style: GoogleFonts.poppins(
                             fontWeight: FontWeight.w600, fontSize: 16)),
                     const SizedBox(height: 4),
-                    Text(c.location,
+                    Text('${c['lat']}, ${c['lng']}',
                         style: const TextStyle(color: Colors.grey)),
+                    if (c['distanceKm'] != null)
+                      Text('${c['distanceKm'].toStringAsFixed(1)} km away',
+                          style: const TextStyle(color: Colors.blue, fontSize: 12)),
                     const SizedBox(height: 8),
                     Row(
                       children: [
@@ -86,11 +103,11 @@ class _VolunteerHomeState extends State<VolunteerHome> {
                           padding: const EdgeInsets.symmetric(
                               horizontal: 8, vertical: 4),
                           decoration: BoxDecoration(
-                              color: _statusColor(c.status).withOpacity(0.1),
+                              color: _statusColor(statusStr).withOpacity(0.1),
                               borderRadius: BorderRadius.circular(8)),
                           child: Text(
-                            c.status.toUpperCase(),
-                            style: TextStyle(color: _statusColor(c.status)),
+                            status.toUpperCase(),
+                            style: TextStyle(color: _statusColor(statusStr)),
                           ),
                         ),
                       ],
@@ -98,10 +115,7 @@ class _VolunteerHomeState extends State<VolunteerHome> {
                   ]),
             ),
             ElevatedButton(
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                    content: Text('Accepted case: ${c.title}')));
-              },
+              onPressed: () => _acceptCase(c['id']),
               style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.green,
                   padding:
@@ -114,7 +128,69 @@ class _VolunteerHomeState extends State<VolunteerHome> {
     );
   }
 
-  Widget _buildPastCaseCard(CaseModel c) {
+  Future<void> _acceptCase(int id) async {
+    try {
+      await ApiService.volunteerAccept(id);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('✅ Accepted case #$id')),
+        );
+        _loadNearbyCases();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('❌ Error: ${e.toString()}')),
+        );
+      }
+    }
+  }
+
+  Future<void> _submitReport(int id) async {
+    final controller = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Submit Report'),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(hintText: 'Report details...'),
+          maxLines: 3,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Submit'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && controller.text.isNotEmpty) {
+      try {
+        await ApiService.volunteerReport(id, controller.text);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('✅ Report submitted for case #$id')),
+          );
+          _loadNearbyCases();
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('❌ Error: ${e.toString()}')),
+          );
+        }
+      }
+    }
+  }
+
+  Widget _buildPastCaseCard(Map<String, dynamic> c) {
+    final status = ['Pending', 'Acknowledged', 'Escalated', 'Resolved'][c['status'] ?? 0];
+    final statusStr = status.toLowerCase();
     return Card(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       elevation: 2,
@@ -126,11 +202,11 @@ class _VolunteerHomeState extends State<VolunteerHome> {
               child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(c.title,
+                    Text('Case #${c['id']}',
                         style: GoogleFonts.poppins(
                             fontWeight: FontWeight.w600, fontSize: 16)),
                     const SizedBox(height: 4),
-                    Text(c.location,
+                    Text('${c['lat']}, ${c['lng']}',
                         style: const TextStyle(color: Colors.grey)),
                     const SizedBox(height: 8),
                     Row(
@@ -139,47 +215,26 @@ class _VolunteerHomeState extends State<VolunteerHome> {
                           padding: const EdgeInsets.symmetric(
                               horizontal: 8, vertical: 4),
                           decoration: BoxDecoration(
-                              color: _statusColor(c.status).withOpacity(0.1),
+                              color: _statusColor(statusStr).withOpacity(0.1),
                               borderRadius: BorderRadius.circular(8)),
                           child: Text(
-                            c.status.toUpperCase(),
-                            style: TextStyle(color: _statusColor(c.status)),
+                            status.toUpperCase(),
+                            style: TextStyle(color: _statusColor(statusStr)),
                           ),
                         ),
                       ],
                     ),
                   ]),
             ),
-            Column(
-              children: [
-                ElevatedButton.icon(
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                        content: Text('Submitting report for ${c.title}')));
-                  },
-                  icon: const Icon(Icons.note_add, size: 16),
-                  label: const Text('Report'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF7A28FF),
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                ElevatedButton.icon(
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                        content: Text('Follow-up for ${c.title} logged')));
-                  },
-                  icon: const Icon(Icons.update, size: 16),
-                  label: const Text('Follow Up'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.deepPurple,
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                  ),
-                ),
-              ],
+            ElevatedButton.icon(
+              onPressed: () => _submitReport(c['id']),
+              icon: const Icon(Icons.note_add, size: 16),
+              label: const Text('Report'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF7A28FF),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              ),
             ),
           ],
         ),
@@ -210,12 +265,8 @@ class _VolunteerHomeState extends State<VolunteerHome> {
       ]),
     );
 
-    final activeCases =
-        allCases.where((c) => c.status == 'active').toList();
-    final pastCases = allCases
-        .where((c) =>
-            c.status == 'resolved' || c.status == 'in-progress')
-        .toList();
+    final activeCases = _nearbyCases.where((c) => c['status'] == 0 || c['status'] == 1).toList();
+    final pastCases = _nearbyCases.where((c) => c['status'] == 2 || c['status'] == 3).toList();
 
     return Scaffold(
       backgroundColor: Colors.grey.shade50,
@@ -227,12 +278,25 @@ class _VolunteerHomeState extends State<VolunteerHome> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('⚠️ Active Help Requests',
-                    style: GoogleFonts.poppins(
-                        fontSize: 18, fontWeight: FontWeight.w600)),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('⚠️ Active Help Requests',
+                        style: GoogleFonts.poppins(
+                            fontSize: 18, fontWeight: FontWeight.w600)),
+                    IconButton(
+                      icon: const Icon(Icons.refresh),
+                      onPressed: _loading ? null : _loadNearbyCases,
+                    ),
+                  ],
+                ),
                 const SizedBox(height: 10),
-                if (activeCases.isEmpty)
-                  const Text('No active help requests.')
+                if (_loading)
+                  const Center(child: CircularProgressIndicator())
+                else if (_error != null)
+                  Text('Error: $_error', style: const TextStyle(color: Colors.red))
+                else if (activeCases.isEmpty)
+                  const Text('No active help requests nearby.')
                 else
                   ListView.separated(
                     physics: const NeverScrollableScrollPhysics(),
@@ -266,6 +330,7 @@ class _VolunteerHomeState extends State<VolunteerHome> {
           ),
         ),
       ]),
+      bottomNavigationBar: const BottomNav(currentRoute: '/volunteer_home', role: 'volunteer'),
     );
   }
 }
